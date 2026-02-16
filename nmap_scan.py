@@ -56,7 +56,7 @@ def convert_to_json(self):
         self.json_data = json.dumps(self.to_dict(), indent=4)
     except Exception as e: 
         print(f"JSON conversion error: {e}")
-def save_json(self, filenname=f"scan_results_{target}.json"):
+def save_json(self, filenname=f"scan_results.json"):
     if self.json_data is None: 
         self.convert_to_json()
     try: 
