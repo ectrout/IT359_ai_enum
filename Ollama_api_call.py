@@ -2,6 +2,7 @@ import requests
 import os
 
 def chat_with_model(token):
+    prompt = input("Enter a prompt: ")
     """
     Sends a message to the language model API and returns the response.
     
@@ -21,7 +22,7 @@ def chat_with_model(token):
       "messages": [
         {
           "role": "user",
-          "content": "Why is the sky blue?"
+          "content": f"{prompt}"
         }
       ]
     }
@@ -45,3 +46,4 @@ if api_key is None:
 else:
 
     print(chat_with_model(api_key))
+
