@@ -11,7 +11,7 @@ def chat_with_model(token):
     Returns:
         dict: The API response as a JSON object.
     """
-    url = 'http://sushi.it.ilstu.edu:8080'
+    url = 'http://sushi.it.ilstu.edu:8080/api/chat/completions'
     headers = {
         'Authorization': f'Bearer {token}',
         'Content-Type': 'application/json'
@@ -43,4 +43,5 @@ api_key = os.environ.get('API_KEY')
 if api_key is None:
     print("Please set the API_KEY environment variable")
 else:
-    chat_with_model(api_key)
+
+    print(chat_with_model(api_key))
