@@ -47,3 +47,22 @@ else:
 
     print(chat_with_model(api_key))
 
+def ask_ai(token, prompt):
+    url = 'http://sushi.it.ilstu.edu:8080/api/chat/completions'
+    headers = {
+        'Authorization': f'Bearer {token}',
+        'Content-Type': 'application/json'
+    }
+    data = {
+      "model": "llama3.3:latest",
+      "messages": [
+        {
+          "role": "user",
+          "content": prompt
+        }
+      ]
+    }
+    response = requests.post(url,headers=headers,json=data)
+    return response.json()
+
+
