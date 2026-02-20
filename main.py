@@ -5,7 +5,7 @@ import os
 def nmap_to_ai(target):
     print(f"[+] Starting Nmap scan on {target}")
 
-    #First lets run Nmap
+    #1.) lets run Nmap
     scanner = NmapScan(target)
     scanner.run()
 
@@ -17,15 +17,30 @@ def nmap_to_ai(target):
     
     print("[+] Scan complete. Preparing AI analysis... \n")
 
-    #Second intialize the ollama client
+    #2.) intialize the ollama client
     client = Ollamaclient(
         url = 'http://sushi.it.ilstu.edu:8080',
         api_key = os.environ.get('API_KEY'),   #Retrive the API key from the operating system environment
         model="llama3.3:latest"     # Can be changed to a model of your liking
     )
 
-    #Third Build the prompt for Ollama
-    prompt = f"""
+    #3.1) Summarize the scan 
+    summary_prompt = f"""
+Summarize the following Nmap scan in 5 bullet points.
+Do NOT repeat text. Do NOT include recommendations.
+
+Nmap Output:
+{nmap_output}
+"""
+
+    summary = client.chat(summary_prompt)
+
+    # 4. Store ONLY the summary in long-term memory
+    client.remember(f"Summary for {target}:\n{summary}")
+
+    #5.) Now ask for full anlysis using the history 
+
+    analysis_prompt = f"""
 You are a cybersecurity analysis assistant.
 
 Analyze the following Nmap scan results and provide:
@@ -41,10 +56,10 @@ Nmap Output:
 """
     
     #Fourth Send output to Ai 
-    ollama_response = client.chat(prompt)
+    analysis = client.chat(analysis_prompt)
 
     print("\n[+] AI Analysis: \n")
-    print(ollama_response)
+    print(analysis)
 
 
 if __name__ == "__main__":
