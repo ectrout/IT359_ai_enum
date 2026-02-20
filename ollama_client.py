@@ -29,19 +29,27 @@ class Ollamaclient:
         'Content-Type': 'application/json'
         }
         return headers
+    
     #Load any history if the file exists
     def _load_history(self):
         if os.path.exists(self.history_file):
             with open(self.history_file, "r") as f:
                 return json.load(f)
         return []   #Return history 
+    
     #Save any history to the file
     def _save_history(self):
         with open(self.history_file, "w") as f:
             json.dump(self.history, f, indent=2)
+
+    #Usde to store summaries and not whole responses. This will help handle duplicate outputs due to how history is functioning. 
+    def remember(self, content: str):
+        #Store only the high level summaries, not raw scan data
+        self.history.append({"role": "system", "content": content})
+        self._save_history()
     
     ##############################################################
-    #       Start of core chat methodoly                         #
+    #               Start of core chat methodoly                 #
     ##############################################################
 
     def chat(self, message: str, temperature: float = 0.2) -> str:
@@ -76,7 +84,7 @@ class Ollamaclient:
 
             return reply 
         except requests.exceptions.RequestException as e:
-            raise RuntimeError(f"Ollama API request failed: {e}")
+            raise RuntimeError(f"Ollama API request failed: {e}")     #show me the error!
         
     #Resets the chat history 
     def reset(self):
