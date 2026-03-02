@@ -79,6 +79,31 @@ Nmap Output:
     except Exception as e:
         print(f"[!] Could not parse JSON: {e}")
         return
+    if not tests:
+        print("[!] No tests returned by Ai.")
+        return 
+
+    
+    #User selects tests to run | Keeping Humans involved. 
+    print("\n[+] Test menu:\n")
+    for i, t in enumerate(tests, start=1):
+        print(f"{i}.  {t['name']} - {t['description']}")
+    
+    choice = input("\nSelect tests to run (e.g., 1,2,'all', or 'none')").strip().lower()
+    #Now determine test logic
+    if choice == "none":
+        print("[+] No test(s) selected. Returning to prompt.\n")
+        return
+    if choice == "all":
+        print("[+] All tests selected")
+        selected_tests = tests
+    else:
+        try:
+            indexes = [int(x.strip()) for x in choice.split(",")]
+            selected_tests = [tests[i-1] for i in indexes if 1 <= i <= len(tests)]
+        except:
+            print("[!] Invalid selection. No tests will be run. \n")
+            return 
 
     tester = Tester(target)
 
@@ -100,11 +125,12 @@ if __name__ == "__main__":
     )
 
     while True:
-        target = input("Enter target IP (or 'exit'): ").strip()
+        target = input("Enter target IP (or 'exit'): ").strip().lower()
         if target == "exit":
             break
         if target == "reset":
             client.reset()
+            print("[+] Ai memory has been reset. Ready for next command...\n")
+            continue
         if target:
             nmap_to_ai(target,client)
-
