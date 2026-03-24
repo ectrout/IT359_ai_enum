@@ -14,6 +14,7 @@ class NmapScan:
     def __init__(self, target):
         self.target = target
         self.command = ["nmap", "-p-", "-sV", "-O", "--script", "default,vuln", target]
+        self.stdout = None
         self.stderr = None
         self.returncode = None
         self.json_data = None
