@@ -13,8 +13,7 @@ Project: IT-359 AI Pen Testing enumerator
 class NmapScan:
     def __init__(self, target):
         self.target = target
-        self.command = ["nmap", "-p-", "-sV", "-O", target]
-        self.stdout = None
+        self.command = ["nmap", "-p-", "-sV", "-O", "--script", "default,vuln", target]
         self.stderr = None
         self.returncode = None
         self.json_data = None
