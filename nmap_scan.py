@@ -17,7 +17,7 @@ class NmapScan:
         self.stdout = None
         self.stderr = None
         self.returncode = None
-        self.json_data = None; 
+        self.json_data = None
 
     def run(self):
         try:
@@ -56,14 +56,15 @@ class NmapScan:
             self.json_data = json.dumps(self.to_dict(), indent=4)
         except Exception as e: 
             print(f"JSON conversion error: {e}")
-    def save_json(self, filenname=f"scan_results.json"):
+            
+    def save_json(self, filename="scan_results.json"):  # FIXED: removed f-string, fixed typo
         if self.json_data is None: 
             self.convert_to_json()
         try: 
             with open(filename, "w") as file: 
                 file.write(self.json_data)
         except Exception as e: 
-            print(f"File writing error: " {e}) 
+            print(f"File writing error: {e}")  # FIXED: proper f-string syntax
 
     def get_raw_output(self):
         return self.stdout 
