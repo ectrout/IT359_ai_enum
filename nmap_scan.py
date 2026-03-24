@@ -51,25 +51,25 @@ class NmapScan:
             "stdout": self.stdout,
             "stderr": self.stderr
         }
-def convert_to_json(self): 
-    try:
-        self.json_data = json.dumps(self.to_dict(), indent=4)
-    except Exception as e: 
-        print(f"JSON conversion error: {e}")
-def save_json(self, filenname=f"scan_results.json"):
-    if self.json_data is None: 
-        self.convert_to_json()
-    try: 
-        with open(filename, "w") as file: 
-            file.write(self.json_data)
-    except Exception as e: 
-        print(f"File writing error: " {e}) 
+    def convert_to_json(self): 
+        try:
+            self.json_data = json.dumps(self.to_dict(), indent=4)
+        except Exception as e: 
+            print(f"JSON conversion error: {e}")
+    def save_json(self, filenname=f"scan_results.json"):
+        if self.json_data is None: 
+            self.convert_to_json()
+        try: 
+            with open(filename, "w") as file: 
+                file.write(self.json_data)
+        except Exception as e: 
+            print(f"File writing error: " {e}) 
 
-def get_raw_output(self):
-    return self.stdout 
+    def get_raw_output(self):
+        return self.stdout 
 
-def get_json_output(self): 
-    if self.json_data is None: 
-        self.convert_to_json() 
-    return self.json_data
+    def get_json_output(self): 
+        if self.json_data is None: 
+            self.convert_to_json() 
+        return self.json_data
 
