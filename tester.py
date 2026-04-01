@@ -14,7 +14,7 @@ class Tester:
         #Small Json collection of tests, can add as methods are developed. 
         tests = {
             "http_title": self.http_title,
-            "smb_null_session": self.smb_null_session,
+            "smb_null_session": self.smb_null,
             "ftp_anonymous": self.ftp_anonymous,
             "tls_version": self.tls_version
         }
