@@ -27,7 +27,7 @@ class Tester:
         try:
             r = requests.get(f"http://{self.target}", timeout=5)
             if "<title>" in r.text.lower():
-                start = r.text.lower().find("<title>") + 7
+                start = r.text.lower().find("</title>") + 7
                 end = r.text.lower().find("<title>") 
                 return f"[HTTP] Title: {r.text[start:end]}"    
             return "[HTTP] No Title found."
