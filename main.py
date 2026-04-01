@@ -1,5 +1,6 @@
 from nmap_scan import NmapScan
 from ollama_client import Ollamaclient
+from Service_enum import ServiceEnumerator
 from tester import Tester
 import os
 import json
@@ -7,7 +8,9 @@ import json
 
 def nmap_to_ai(target, client):
     print(f"[+] Starting Nmap scan on {target}")
-
+    # ----------------------------------------------------------------
+    # Phase 1: Broad Nmap scan
+    # ----------------------------------------------------------------
     #1.) lets run Nmap
     scanner = NmapScan(target)
     scanner.run()
@@ -19,7 +22,9 @@ def nmap_to_ai(target, client):
         return
     
     print("[+] Scan complete. Preparing AI analysis... \n")
-
+    # ----------------------------------------------------------------
+    # Phase 2: Ollama summarizes the scan (stored in memory)
+    # ----------------------------------------------------------------
     #3.1) Summarize the scan 
     summary_prompt = f"""
 Summarize the following Nmap scan in 5 bullet points.
@@ -35,7 +40,9 @@ Nmap Output:
     client.remember(f"Summary for {target}:\n{summary}")
 
     #5.) Now ask for full anlysis using the history 
-
+    # ----------------------------------------------------------------
+    # Phase 3: Ollama full analysis
+    # ----------------------------------------------------------------
     analysis_prompt = f"""
 You are a cybersecurity analysis assistant.
 
@@ -56,7 +63,130 @@ Nmap Output:
 
     print("\n[+] AI Analysis: \n")
     print(analysis)
+    # ----------------------------------------------------------------
+    # Phase 4: Ollama recommends enumeration targets
+    # ----------------------------------------------------------------
+enum_prompt = f"""
+Based on this analysis, return ONLY a JSON object with this exact structure:
+{{
+    "enumerate": [
+        {{"port": 80, "service": "http", "reason": "Apache 2.4.49 detected"}},
+        {{"port": 445, "service": "smb", "reason": "SMB signing disabled"}}
+    ]
+}}
 
+Rules:
+- port must be an integer
+- service must be one of: http, https, smb, ftp, ssh, smtp
+- reason must explain WHY this port needs deeper enumeration
+- Return ONLY the JSON object, no extra text
+
+Analysis:
+{analysis}
+"""
+    enum_json_raw = client.chat(enum_prompt)
+
+    print("\n[+] Ollama recommended enumeration targets:\n")
+    print(enum_json_raw)
+
+    try:
+        clean       = enum_json_raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        parsed      = json.loads(clean)
+        enum_targets = parsed.get("enumerate", [])
+    except Exception as e:
+        print(f"[!] Could not parse enumeration JSON: {e}")
+        return
+
+    if not enum_targets:
+        print("[!] Ollama returned no enumeration targets.")
+        return
+
+# ----------------------------------------------------------------
+    # Phase 5: User selects which ports to enumerate
+    # ----------------------------------------------------------------
+    print("\n[+] Enumeration targets:\n")
+    for i, t in enumerate(enum_targets, start=1):
+        print(f"  {i}. Port {t['port']} ({t['service']}) — {t['reason']}")
+
+    choice = input("\nSelect targets to enumerate (e.g. 1,2 / 'all' / 'none'): ").strip().lower()
+
+    if choice == "none":
+        print("[+] No targets selected. Returning to prompt.\n")
+        return
+
+    if choice == "all":
+        selected_targets = enum_targets
+    else:
+        try:
+            indexes          = [int(x.strip()) for x in choice.split(",")]
+            selected_targets = [enum_targets[i - 1] for i in indexes if 1 <= i <= len(enum_targets)]
+        except Exception:
+            print("[!] Invalid selection. No targets will be enumerated.\n")
+            return
+
+    if not selected_targets:
+        print("[!] No valid targets selected.\n")
+        return
+
+    # ----------------------------------------------------------------
+    # Phase 6: ServiceEnumerator runs targeted enumeration
+    # ----------------------------------------------------------------
+    print(f"\n[+] Running enumeration on {len(selected_targets)} target(s)...\n")
+
+    enumerator = ServiceEnumerator(target, config)
+    findings   = enumerator.enumerate(selected_targets)    # FIX: was iterating `tests` not `selected_tests`
+
+    print("\n[+] Enumeration complete.\n")
+    print(json.dumps(findings, indent=2))
+
+    # ----------------------------------------------------------------
+    # Phase 7: Ollama analyzes enumeration findings
+    # ----------------------------------------------------------------
+    findings_prompt = f"""
+You are a cybersecurity analysis assistant.
+
+The following enumeration data was collected from {target}.
+Analyze the findings and provide:
+- What vulnerabilities were confirmed
+- Which findings are highest priority and why
+- Recommended next steps
+
+Enumeration findings:
+{json.dumps(findings, indent=2)}
+"""
+    findings_analysis = client.chat(findings_prompt)
+
+    print("\n[+] Ollama findings analysis:\n")
+    print(findings_analysis)
+
+    client.remember(f"Enumeration findings for {target}:\n{findings_analysis}")
+
+
+if __name__ == "__main__":
+    config = load_config()
+
+    client = Ollamaclient(
+        url     = config.get("ollama_url", "http://sushi.it.ilstu.edu:8080"),
+        api_key = os.environ.get("API_KEY"),
+        model   = config.get("model", "llama3.3:latest")
+    )
+
+    while True:
+        target = input("\nEnter target IP (or 'exit' / 'reset'): ").strip().lower()
+
+        if target == "exit":
+            print("[+] Exiting xRECON.")
+            break
+
+        if target == "reset":
+            client.reset()
+            print("[+] Ollama memory reset.\n")
+            continue
+
+        if target:
+            nmap_to_ai(target, client, config)
+
+    
     #Next Step prompt
     next_step_prompt = f"""
     Based on this analysis, return ONLY a JSON object WITH:
