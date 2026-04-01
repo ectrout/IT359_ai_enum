@@ -107,7 +107,7 @@ Nmap Output:
 
     tester = Tester(target)
 
-    for t in tests:
+    for t in selected_tests:
         name = t["name"]
         print(f"\n[+] Running test: {name}")
         result = tester.run_test(name)
