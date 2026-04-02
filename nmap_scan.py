@@ -18,7 +18,7 @@ class NmapScan:
 
         if fast:
             # Fast mode: top 1000 ports, aggressive timing, no vuln scripts
-            # Cuts scan time from ~20 min down to ~2 min on HTB machines
+            # Cuts scan time from ~20 min down to ~2 min on machines
             self.command = ["nmap", "-T4", "--top-ports", "1000", "-sV", target]
         else:
             # Full mode: all ports, version detection, default + vuln scripts
