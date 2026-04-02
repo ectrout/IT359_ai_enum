@@ -1,23 +1,33 @@
 import subprocess
+import json
 
 """
 nmap_scan.py
 
-This tool is an object oriented Nmap execution. 
-This class is not very modular and is specifically designed to feed Nmap data to Ollama LLMs
-This is a part of a larger pen testing framework using ai
+Object oriented Nmap execution.
+Designed to feed Nmap data to Ollama LLMs as part of xRECON.
 
 Author: Eric Trout
-Project: IT-359 AI Pen Testing enumerator
+Project: IT-359 xRECON AI Pen Testing Framework
 """
+
+
 class NmapScan:
-    def __init__(self, target):
+    def __init__(self, target, fast=False):
         self.target = target
-        self.command = ["nmap", "-p-", "-sV", "--script", "default,vuln", target]
-        self.stdout = None
-        self.stderr = None
+
+        if fast:
+            # Fast mode: top 1000 ports, aggressive timing, no vuln scripts
+            # Cuts scan time from ~20 min down to ~2 min on HTB machines
+            self.command = ["nmap", "-T4", "--top-ports", "1000", "-sV", target]
+        else:
+            # Full mode: all ports, version detection, default + vuln scripts
+            self.command = ["nmap", "-p-", "-sV", "--script", "default,vuln", target]
+
+        self.stdout     = None
+        self.stderr     = None
         self.returncode = None
-        self.json_data = None
+        self.json_data  = None
 
     def run(self):
         try:
@@ -27,50 +37,48 @@ class NmapScan:
                 text=True,
                 check=True
             )
-
-            self.stdout = result.stdout
-            self.stderr = result.stderr
+            self.stdout     = result.stdout
+            self.stderr     = result.stderr
             self.returncode = result.returncode
-
         except FileNotFoundError:
-            print("Nmap not installed.")
+            print("[-] Nmap not installed.")
         except subprocess.CalledProcessError as e:
-            print("Scan failed.")
+            print("[-] Scan failed.")
             self.stderr = e.stderr
         except Exception as e:
-            print(f"Unexpected error: {e}")
+            print(f"[-] Unexpected error: {e}")
 
     def get_output(self):
         return self.stdout
 
     def to_dict(self):
         return {
-            "target": self.target,
-            "command": self.command,
+            "target":     self.target,
+            "command":    self.command,
             "returncode": self.returncode,
-            "stdout": self.stdout,
-            "stderr": self.stderr
+            "stdout":     self.stdout,
+            "stderr":     self.stderr
         }
-    def convert_to_json(self): 
+
+    def convert_to_json(self):
         try:
             self.json_data = json.dumps(self.to_dict(), indent=4)
-        except Exception as e: 
-            print(f"JSON conversion error: {e}")
-            
-    def save_json(self, filename="scan_results.json"):  # FIXED: removed f-string, fixed typo
-        if self.json_data is None: 
+        except Exception as e:
+            print(f"[-] JSON conversion error: {e}")
+
+    def save_json(self, filename="scan_results.json"):
+        if self.json_data is None:
             self.convert_to_json()
-        try: 
-            with open(filename, "w") as file: 
-                file.write(self.json_data)
-        except Exception as e: 
-            print(f"File writing error: {e}")  # FIXED: proper f-string syntax
+        try:
+            with open(filename, "w") as f:
+                f.write(self.json_data)
+        except Exception as e:
+            print(f"[-] File writing error: {e}")
 
     def get_raw_output(self):
-        return self.stdout 
+        return self.stdout
 
-    def get_json_output(self): 
-        if self.json_data is None: 
-            self.convert_to_json() 
+    def get_json_output(self):
+        if self.json_data is None:
+            self.convert_to_json()
         return self.json_data
-

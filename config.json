@@ -1,0 +1,8 @@
+{
+    "ollama_url": "http://sushi.it.ilstu.edu:8080",
+    "model": "llama3.3:latest",
+    "timeout": 60,
+    "wordlist": "/usr/share/wordlists/dirb/common.txt",
+    "gobuster": true,
+    "nikto": true
+}
