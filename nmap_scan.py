@@ -22,7 +22,7 @@ class NmapScan:
             self.command = ["nmap", "-T4", "--top-ports", "1000", "-sV", target]
         else:
             # Full mode: all ports, version detection, default + vuln scripts
-            self.command = ["nmap", "-p-", "-sV", "--script", "default,vuln", target]
+            self.command = ["nmap", "-sV", "--script", "default,vuln", target]
 
         self.stdout     = None
         self.stderr     = None
