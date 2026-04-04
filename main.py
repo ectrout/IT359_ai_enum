@@ -207,7 +207,7 @@ Enumeration findings:
             print(f"  [{c.get('severity', 'N/A')}] {c.get('cve_id')} — "
                   f"{c.get('software')} {c.get('version')} "
                   f"(Score: {c.get('score')})")
-            print(f"      {c.get('description', '')[:120]}\n")
+            print(f"      {c.get('description', '')}\n")
 
         nvd.save_results(cve_list, target)
 

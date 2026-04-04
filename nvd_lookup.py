@@ -1,43 +1,45 @@
-import requests
+import nvdlib
 import json
 import time
 
 """
 nvd_lookup.py
 
-Queries the NIST National Vulnerability Database (NVD) REST API
-to cross-reference software versions found during enumeration with
-known CVEs. Uses Ollama to extract version strings from raw findings
-rather than brittle regex.
+Queries the NVD using nvdlib — a proper Python wrapper that handles
+rate limiting, key names, and response parsing automatically.
+
+Replaces the raw requests approach which had fragile key name assumptions
+and was hitting NVD rate limits silently.
 
 Author: Eric Trout / Jake Cirks
 Project: IT-359 xRECON AI Pen Testing Framework
 
-NVD API docs: https://nvd.nist.gov/developers/vulnerabilities
+Install: pip install nvdlib
 """
 
 
 class NVDLookup:
 
-    def __init__(self, timeout: int = 10, results_per_page: int = 5):
-        self.base_url        = "https://services.nvd.nist.gov/rest/json/cves/2.0"
-        self.timeout         = timeout
+    def __init__(self, api_key: str = None, results_per_page: int = 5):
+        """
+        api_key — optional NVD API key from https://nvd.nist.gov/developers/request-an-api-key
+                  Free, takes 1 minute to get. Without it nvdlib sleeps 6 seconds between
+                  requests automatically to respect rate limits.
+        """
+        self.api_key         = api_key
         self.results_per_page = results_per_page
 
 
     # ------------------------------------------------------------------
-    # Public entry point — call this from main.py
+    # Public entry point
     # ------------------------------------------------------------------
 
     def run(self, findings: dict, client) -> list:
         """
         Full pipeline:
             1. Ask Ollama to extract software/version pairs from findings
-            2. Query NVD for each pair
+            2. Query NVD via nvdlib for each pair
             3. Return sorted CVE list (highest score first)
-
-        findings  — the dict returned by ServiceEnumerator.enumerate()
-        client    — your Ollamaclient instance
         """
         print("\n[+] Extracting software versions via Ollama...")
         version_list = self.extract_versions(findings, client)
@@ -53,28 +55,19 @@ class NVDLookup:
             print("[!] No CVEs found for detected software.")
             return []
 
-        # Sort by CVSS score descending so highest risk is first
         cve_list.sort(key=lambda x: x.get("score") or 0, reverse=True)
-
         return cve_list
 
 
     # ------------------------------------------------------------------
-    # Step 1: Use Ollama to extract version strings from findings
+    # Step 1: Ollama extracts version strings
     # ------------------------------------------------------------------
 
     def extract_versions(self, findings: dict, client) -> list:
         """
         Sends enumeration output to Ollama and asks it to extract
         software names and version numbers as structured JSON.
-
-        Returns:
-            [
-                {"software": "Apache", "version": "2.4.49"},
-                {"software": "OpenSSH", "version": "7.4"}
-            ]
         """
-        # Pull just the output strings from each finding, labeled by port
         output_text = ""
         for finding in findings.get("findings", []):
             port    = finding.get("port")
@@ -123,29 +116,20 @@ Enumeration output:
 
 
     # ------------------------------------------------------------------
-    # Step 2: Query NVD for each software/version pair
+    # Step 2: Query NVD via nvdlib
     # ------------------------------------------------------------------
 
     def lookup_cves(self, version_list: list) -> list:
         """
-        Queries NVD API for each {software, version} dict.
-        Returns a flat list of CVE dicts with score and severity.
-
-        Each result looks like:
-            {
-                "software":    "Apache",
-                "version":     "2.4.49",
-                "cve_id":      "CVE-2021-41773",
-                "score":       9.8,
-                "severity":    "CRITICAL",
-                "description": "A path traversal vulnerability..."
-            }
+        Uses nvdlib.searchCVE() to query NVD for each software/version pair.
+        nvdlib handles rate limiting automatically — 6 second sleep between
+        requests without an API key, 0.6 seconds with one.
         """
         all_cves = []
 
         for item in version_list:
-            software = item.get("software", "")
-            version  = item.get("version", "")
+            software = item.get("software", "").strip()
+            version  = item.get("version", "").strip()
 
             if not software or not version:
                 continue
@@ -153,111 +137,65 @@ Enumeration output:
             query = f"{software} {version}"
             print(f"  [~] Querying NVD for: {query}")
 
-            cves = self._query_nvd(query, software, version)
-            all_cves.extend(cves)
+            try:
+                results = nvdlib.searchCVE(
+                    keywordSearch=query,
+                    limit=self.results_per_page,
+                    key=self.api_key,
+                    delay=1 if self.api_key else 6
+                )
 
-            # NVD rate limit: 5 requests per 30 seconds without API key
-            # Sleep briefly between requests to avoid getting blocked
-            time.sleep(1)
+                for r in results:
+                    # Pull score — nvdlib exposes v31score, v30score, v2score
+                    score    = None
+                    severity = None
+
+                    if hasattr(r, 'v31score') and r.v31score:
+                        score    = r.v31score
+                        severity = r.v31severity if hasattr(r, 'v31severity') else None
+                    elif hasattr(r, 'v30score') and r.v30score:
+                        score    = r.v30score
+                        severity = r.v30severity if hasattr(r, 'v30severity') else None
+                    elif hasattr(r, 'v2score') and r.v2score:
+                        score    = r.v2score
+                        severity = r.v2severity if hasattr(r, 'v2severity') else None
+
+                    # Pull description
+                    description = ""
+                    if hasattr(r, 'descriptions') and r.descriptions:
+                        for d in r.descriptions:
+                            if d.lang == "en":
+                                description = d.value
+                                break
+
+                    all_cves.append({
+                        "software":    software,
+                        "version":     version,
+                        "cve_id":      r.id,
+                        "score":       score,
+                        "severity":    severity,
+                        "description": description[:500]
+                    })
+
+                if results:
+                    print(f"    [+] Found {len(results)} CVE(s) for {query}")
+                else:
+                    print(f"    [-] No CVEs found for {query}")
+
+            except Exception as e:
+                print(f"    [!] NVD query failed for {query}: {e}")
 
         return all_cves
 
 
     # ------------------------------------------------------------------
-    # NVD API call
-    # ------------------------------------------------------------------
-
-    def _query_nvd(self, query: str, software: str, version: str) -> list:
-        """
-        Makes a single request to the NVD API and parses the response.
-        Returns a list of CVE dicts for this software/version pair.
-        """
-        params = {
-            "keywordSearch":  query,
-            "resultsPerPage": self.results_per_page
-        }
-
-        try:
-            response = requests.get(
-                self.base_url,
-                params=params,
-                timeout=self.timeout
-            )
-            response.raise_for_status()
-            data = response.json()
-
-        except requests.exceptions.Timeout:
-            print(f"    [!] NVD request timed out for: {query}")
-            return []
-        except requests.exceptions.RequestException as e:
-            print(f"    [!] NVD request failed for {query}: {e}")
-            return []
-        except Exception as e:
-            print(f"    [!] Unexpected error querying NVD: {e}")
-            return []
-
-        # Parse each CVE out of the response
-        results = []
-        vulnerabilities = data.get("vulnerabilities", [])
-
-        for vuln in vulnerabilities:
-            cve = vuln.get("cve", {})
-
-            cve_id = cve.get("id", "UNKNOWN")
-
-            # Pull description (first English one)
-            description = ""
-            for desc in cve.get("descriptions", []):
-                if desc.get("lang") == "en":
-                    description = desc.get("value", "")
-                    break
-
-            # Try CVSS v3.1 first, fall back to v2
-            score    = None
-            severity = None
-
-            metrics = cve.get("metrics", {})
-
-            if metrics.get("cvssMetricV31"):
-                cvss_data = metrics["cvssMetricV31"][0].get("cvssData", {})
-                score     = cvss_data.get("baseScore")
-                severity  = cvss_data.get("baseSeverity")
-
-            elif metrics.get("cvssMetricV2"):
-                cvss_data = metrics["cvssMetricV2"][0].get("cvssData", {})
-                score     = cvss_data.get("baseScore")
-                severity  = cvss_data.get("baseSeverity", "N/A")
-
-            results.append({
-                "software":    software,
-                "version":     version,
-                "cve_id":      cve_id,
-                "score":       score,
-                "severity":    severity,
-                "description": description[:300]   # truncate so it doesn't flood Ollama
-            })
-
-        if results:
-            print(f"    [+] Found {len(results)} CVE(s) for {query}")
-        else:
-            print(f"    [-] No CVEs found for {query}")
-
-        return results
-
-
-    # ------------------------------------------------------------------
-    # Export results to JSON file
+    # Export
     # ------------------------------------------------------------------
 
     def save_results(self, cve_list: list, target: str, filename: str = None):
-        """
-        Saves the CVE list to a JSON file.
-        Filename defaults to {target}_cves.json
-        """
         if filename is None:
             safe_target = target.replace(".", "_")
             filename    = f"{safe_target}_cves.json"
-
         try:
             with open(filename, "w") as f:
                 json.dump(cve_list, f, indent=2)
