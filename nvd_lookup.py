@@ -73,6 +73,8 @@ class NVDLookup:
             port    = finding.get("port")
             service = finding.get("service")
             output  = finding.get("output", "")
+            if api_key: str = none
+                time.sleep(6) 
             if output:
                 output_text += f"\nPort {port} ({service}):\n{output}\n"
 
