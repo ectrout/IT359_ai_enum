@@ -20,13 +20,13 @@ Install: pip install nvdlib
 
 class NVDLookup:
 
-    def __init__(self, api_key: str = None, results_per_page: int = 5):
+    def __init__(self, api_key: str = api_key, results_per_page: int = 5):
         """
         api_key — optional NVD API key from https://nvd.nist.gov/developers/request-an-api-key
                   Free, takes 1 minute to get. Without it nvdlib sleeps 6 seconds between
                   requests automatically to respect rate limits.
         """
-        self.api_key         = api_key
+        self.api_key       = os.environ.get('NVD_API_KEY', 'default_value')
         self.results_per_page = results_per_page
 
 
