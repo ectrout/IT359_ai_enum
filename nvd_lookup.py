@@ -1,113 +1,114 @@
 import os
 import time
-import nvdlib
-from typing import List, Dict, Any
+import requests
 
 
 class NVDLookupStructured:
-    def __init__(self, results_per_page: int = 5):
+    def __init__(self, results_per_page=5):
         self.api_key = os.environ.get("NVD_API_KEY")
         self.results_per_page = results_per_page
-        self.delay = 1 if self.api_key else 7
+        self.base_url = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 
         if self.api_key:
-            print("[+] NVD API key found — fast mode (1s delay)")
+            print("[+] NVD API key loaded — fast mode (1s delay)")
+            self.delay = 1
         else:
             print("[!] No NVD API key — rate-limited mode (7s delay)")
-            print("    Get a free key: https://nvd.nist.gov/developers/request-an-api-key")
+            self.delay = 7
 
-    def build_software_list(self, scan_model: Dict[str, Any]) -> List[Dict[str, str]]:
-        items = []
-        for host in scan_model.get("hosts", []):
-            for port in host.get("ports", []):
-                product = port.get("product")
-                version = port.get("version")
-                service = port.get("service")
-                portid = port.get("port")
+    # ------------------------------------------------------------
+    # CPE BUILDER (simple + effective)
+    # ------------------------------------------------------------
+    def guess_cpe(self, product: str, version: str):
+        """
+        Convert product/version into a simple CPE guess.
+        Example:
+            product="ProFTPD", version="1.3.5"
+            → cpe:/a:proftpd:proftpd:1.3.5
+        """
+        if not product or not version:
+            return None
 
-                # Keep entries even if version is missing
-                items.append({
-                    "service": service,
-                    "product": product,
-                    "version": version,
-                    "port": portid,
-                })
-        return items
+        p = product.lower().replace(" ", "_")
+        return f"cpe:/a:{p}:{p}:{version}"
 
-    def lookup_cves(self, software_list: List[Dict[str, str]]) -> List[Dict[str, Any]]:
-        all_cves = []
+    # ------------------------------------------------------------
+    # MAIN LOOKUP
+    # ------------------------------------------------------------
+    def lookup_cves(self, software_list):
+        results = []
 
-        for item in software_list:
-            product = (item.get("product") or "").strip()
-            version = (item.get("version") or "").strip()
-            service = (item.get("service") or "").strip()
-            port = item.get("port")
+        for entry in software_list:
+            product = entry.get("product")
+            version = entry.get("version")
+            port = entry.get("port")
 
-            # If we have neither product nor service, skip
-            if not product and not service:
+            # Skip empty entries
+            if not product or not version:
+                print(f"[!] Skipping empty product/version for port {port}")
                 continue
 
-            # Build a reasonable keyword query
-            if product and version:
-                query = f"{product} {version}"
-            elif product:
-                query = product
-            elif service and version:
-                query = f"{service} {version}"
-            else:
-                query = service
+            # Build CPE
+            cpe = self.guess_cpe(product, version)
+            if not cpe:
+                print(f"[!] Could not build CPE for {product} {version}")
+                continue
 
-            print(f"  [~] Querying NVD for: {query} (port {port})")
+            print(f"[~] Querying NVD for CPE: {cpe} (port {port})")
+
+            params = {
+                "cpeName": cpe,
+                "resultsPerPage": self.results_per_page
+            }
+
+            headers = {}
+            if self.api_key:
+                headers["apiKey"] = self.api_key
 
             try:
-                results = nvdlib.searchCVE(
-                    keywordSearch=query,
-                    limit=self.results_per_page,
-                    key=self.api_key,
-                    delay=self.delay,
+                response = requests.get(
+                    self.base_url,
+                    params=params,
+                    headers=headers,
+                    timeout=10
                 )
 
-                for r in results:
-                    score = None
-                    severity = None
+                # Debug: show the exact URL used
+                print("[DEBUG] URL:", response.url)
 
-                    if getattr(r, "v31score", None):
-                        score = r.v31score
-                        severity = getattr(r, "v31severity", None)
-                    elif getattr(r, "v30score", None):
-                        score = r.v30score
-                        severity = getattr(r, "v30severity", None)
-                    elif getattr(r, "v2score", None):
-                        score = r.v2score
-                        severity = getattr(r, "v2severity", None)
+                response.raise_for_status()
+                data = response.json()
 
-                    description = ""
-                    if getattr(r, "descriptions", None):
-                        for d in r.descriptions:
-                            if d.lang == "en":
-                                description = d.value
-                                break
+                cve_items = data.get("vulnerabilities", [])
+                for item in cve_items:
+                    cve_id = item.get("cve", {}).get("id")
+                    if cve_id:
+                        results.append({
+                            "cve_id": cve_id,
+                            "product": product,
+                            "version": version,
+                            "port": port
+                        })
 
-                    all_cves.append({
-                        "port": port,
-                        "service": service,
-                        "product": product,
-                        "version": version or None,
-                        "cve_id": r.id,
-                        "score": score,
-                        "severity": severity,
-                        "description": description,
-                        "query": query,
-                    })
-
-                if results:
-                    print(f"    [+] Found {len(results)} CVE(s) for {query}")
-                else:
-                    print(f"    [-] No CVEs found for {query}")
-
+            except requests.exceptions.HTTPError as e:
+                print(f"[!] HTTP error for {product} {version}: {e}")
             except Exception as e:
-                print(f"    [!] NVD query failed for {query}: {e}")
+                print(f"[!] Error querying NVD for {product} {version}: {e}")
 
-        # Sort by score descending, None last
-        all_cves.sort(key=lambda x: x.get("score") or 0, reverse=True)
-        return all_cves
+            time.sleep(self.delay)
+
+        return results
+
+    # ------------------------------------------------------------
+    # Build software list from structured scan model
+    # ------------------------------------------------------------
+    def build_software_list(self, scan_model):
+        software = []
+        for host in scan_model.get("hosts", []):
+            for svc in host.get("services", []):
+                software.append({
+                    "product": svc.get("product"),
+                    "version": svc.get("version"),
+                    "port": svc.get("port")
+                })
+        return software
