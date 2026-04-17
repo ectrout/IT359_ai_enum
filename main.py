@@ -119,6 +119,7 @@ Based on the analysis above, return ONLY a JSON object:
 }}
 
 Rules:
+- Analyze all open ports and suggest them for enumeration whenever possible based off of service version
 - port must be an integer
 - service must be one of: http, https, smb, ftp, ssh, smtp
 - reason is ONE sentence — the specific exploitable finding
