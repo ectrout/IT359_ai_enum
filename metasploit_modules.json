@@ -1,0 +1,45 @@
+{
+  "modules": [
+    {
+      "name": "auxiliary/scanner/mysql/mysql_version",
+      "type": "auxiliary",
+      "description": "MySQL Server Version Enumeration",
+      "cves": [],
+      "references": [
+        "https://dev.mysql.com/doc/",
+        "https://nvd.nist.gov/"
+      ],
+      "options": {
+        "RHOSTS": "Target host(s)",
+        "RPORT": "MySQL port (default: 3306)",
+        "USERNAME": "Optional username for auth-based checks",
+        "PASSWORD": "Optional password for auth-based checks",
+        "THREADS": "Number of concurrent threads"
+      },
+      "what_it_tests": "Queries the MySQL service to obtain version information.",
+      "conditions": [
+        "MySQL service reachable on target port"
+      ]
+    },
+    {
+      "name": "auxiliary/scanner/http/http_version",
+      "type": "auxiliary",
+      "description": "HTTP Server Version Enumeration",
+      "cves": [],
+      "references": [
+        "https://developer.mozilla.org/en-US/docs/Web/HTTP",
+        "https://nvd.nist.gov/"
+      ],
+      "options": {
+        "RHOSTS": "Target host(s)",
+        "RPORT": "HTTP port (default: 80)",
+        "SSL": "Use SSL/TLS (true/false)",
+        "TARGETURI": "Base path to probe (default: /)"
+      },
+      "what_it_tests": "Sends HTTP requests to identify server version and banner.",
+      "conditions": [
+        "HTTP(S) service reachable on target port"
+      ]
+    }
+  ]
+}
