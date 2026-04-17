@@ -70,6 +70,8 @@ def nmap_to_ai(target, client, config):
     nmap_output = scanner.get_output()
 
     if not nmap_output:
+        # Trim history at end of each run to prevent context window bloat
+        client.trim_history(keep_pairs=2)
         print("[-] No output from Nmap. Exiting...")
         return
 
