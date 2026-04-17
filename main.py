@@ -8,7 +8,7 @@ from nmap_parser import NmapXMLParser
 from nvd_lookup_structured import NVDLookupStructured
 from prompts import build_analysis_prompt, build_test_plan_prompt
 from ollama_client import Ollamaclient
-from tester import Tester
+from service_enum import service_enum   # You said you still use this
 
 
 def run_nmap_xml(target: str, xml_path: str = "scan.xml") -> bool:
@@ -21,7 +21,7 @@ def run_nmap_xml(target: str, xml_path: str = "scan.xml") -> bool:
     try:
         result = subprocess.run(cmd, capture_output=True, text=True)
     except FileNotFoundError:
-        print("[!] Nmap not found. Is it installed and in PATH?")
+        print("[!] Nmap not found. Install it or add it to PATH.")
         return False
 
     if result.returncode != 0:
@@ -29,7 +29,7 @@ def run_nmap_xml(target: str, xml_path: str = "scan.xml") -> bool:
         print(result.stderr)
         return False
 
-    print("[+] Nmap scan completed, XML saved to", xml_path)
+    print(f"[+] Nmap scan completed. XML saved to {xml_path}")
     return True
 
 
@@ -44,14 +44,13 @@ def nmap_to_ai_structured(target: str, client: Ollamaclient):
     parser = NmapXMLParser(xml_path)
     scan_model = parser.parse()
 
-    # Optional: quick sanity check
     host_count = len(scan_model.get("hosts", []))
-    print(f"[+] Parsed scan model: {host_count} host(s)")
+    print(f"[+] Parsed scan model: {host_count} host(s) detected")
 
-    # 3) NVD lookup based on structured model
+    # 3) NVD lookup
     nvd = NVDLookupStructured(results_per_page=5)
     software_list = nvd.build_software_list(scan_model)
-    print(f"[+] Built software list with {len(software_list)} entries")
+    print(f"[+] Software list built with {len(software_list)} entries")
 
     cve_list = nvd.lookup_cves(software_list)
     print(f"[+] NVD lookup returned {len(cve_list)} CVE(s)")
@@ -78,52 +77,29 @@ def nmap_to_ai_structured(target: str, client: Ollamaclient):
         print(test_plan_raw)
         return
 
+    print("\n[+] Suggested next steps:\n")
     if not tests:
-        print("[!] No tests suggested by AI.")
-        return
-
-    print("\n[+] Suggested tests:\n")
-    for i, t in enumerate(tests, start=1):
-        name = t.get("name")
-        desc = t.get("description")
-        port = t.get("port")
-        print(f"{i}. {name} (port {port}) - {desc}")
-
-    # 6) Human-in-the-loop selection
-    choice = input("\nSelect tests to run (e.g., 'all', '1,3', or 'none'): ").strip().lower()
-
-    if choice == "none":
-        print("[*] No tests selected.")
-        return
-
-    if choice == "all":
-        selected = tests
+        print("[!] AI did not suggest any tests.")
     else:
-        indices = []
-        for part in choice.split(","):
-            part = part.strip()
-            if part.isdigit():
-                idx = int(part)
-                if 1 <= idx <= len(tests):
-                    indices.append(idx - 1)
-        if not indices:
-            print("[!] No valid indices selected. Aborting test run.")
-            return
-        selected = [tests[i] for i in indices]
+        for i, t in enumerate(tests, start=1):
+            name = t.get("name")
+            desc = t.get("description")
+            port = t.get("port")
+            print(f"{i}. {name} (port {port}) - {desc}")
 
-    # 7) Execute selected tests via Tester
-    tester = Tester(target)
-    for t in selected:
-        name = t.get("name")
-        port = t.get("port")
-        print(f"\n[+] Running test: {name} (port {port})")
-        # You can later extend Tester.run_test to accept port or context
-        result = tester.run_test(name)
-        print(result)
+    print("\n[*] Automated exploitation is disabled.")
+    print("[*] These suggestions are for manual recon guidance.\n")
+
+    # 6) Deterministic service enumeration
+    print("[+] Running deterministic service enumeration...\n")
+    enum_results = service_enum(scan_model)
+
+    print("[+] Service Enumeration Results:\n")
+    print(enum_results)
+    print("\n[*] Enumeration complete.\n")
 
 
 def main():
-    # Configure Ollama client
     client = Ollamaclient(
         url=os.environ.get("OLLAMA_URL", "http://localhost:11434"),
         api_key=os.environ.get("API_KEY"),
