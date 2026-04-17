@@ -1,13 +1,15 @@
 import os
 import time
 import requests
+from difflib import SequenceMatcher
 
 
 class NVDLookupStructured:
     def __init__(self, results_per_page=5):
         self.api_key = os.environ.get("NVD_API_KEY")
         self.results_per_page = results_per_page
-        self.base_url = "https://services.nvd.nist.gov/rest/json/cves/2.0"
+        self.base_cve_url = "https://services.nvd.nist.gov/rest/json/cves/2.0"
+        self.base_cpe_url = "https://services.nvd.nist.gov/rest/json/cpes/2.0"
 
         if self.api_key:
             print("[+] NVD API key loaded — fast mode (1s delay)")
@@ -17,23 +19,68 @@ class NVDLookupStructured:
             self.delay = 7
 
     # ------------------------------------------------------------
-    # CPE BUILDER (simple + effective)
+    # SMART CPE MATCHING (Option B)
     # ------------------------------------------------------------
-    def guess_cpe(self, product: str, version: str):
+    def find_best_cpe(self, product, version):
         """
-        Convert product/version into a simple CPE guess.
-        Example:
-            product="ProFTPD", version="1.3.5"
-            → cpe:/a:proftpd:proftpd:1.3.5
+        Query NVD CPE API and pick the best matching CPE.
         """
-        if not product or not version:
+        params = {"keywordSearch": product}
+        headers = {"apiKey": self.api_key} if self.api_key else {}
+
+        try:
+            resp = requests.get(self.base_cpe_url, params=params, headers=headers, timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as e:
+            print(f"[!] CPE lookup failed for {product}: {e}")
             return None
 
-        p = product.lower().replace(" ", "_")
-        return f"cpe:/a:{p}:{p}:{version}"
+        items = data.get("products", [])
+        if not items:
+            print(f"[!] No CPE candidates found for {product}")
+            return None
+
+        # Score candidates
+        best_score = 0
+        best_cpe = None
+
+        for item in items:
+            cpe = item.get("cpe", {}).get("cpeName")
+            if not cpe:
+                continue
+
+            # Extract vendor/product/version from CPE
+            parts = cpe.split(":")
+            if len(parts) < 5:
+                continue
+
+            vendor = parts[3]
+            prod = parts[4]
+            cpe_version = parts[5] if len(parts) > 5 else ""
+
+            # Similarity scoring
+            score = 0
+            score += SequenceMatcher(None, product.lower(), prod.lower()).ratio() * 0.6
+            score += SequenceMatcher(None, product.lower(), vendor.lower()).ratio() * 0.3
+
+            # Version match bonus
+            if version and version.split(".")[0] in cpe_version:
+                score += 0.3
+
+            if score > best_score:
+                best_score = score
+                best_cpe = cpe
+
+        if best_cpe:
+            print(f"[+] Best CPE match for {product} {version}: {best_cpe}")
+        else:
+            print(f"[!] No suitable CPE match for {product} {version}")
+
+        return best_cpe
 
     # ------------------------------------------------------------
-    # MAIN LOOKUP
+    # MAIN CVE LOOKUP
     # ------------------------------------------------------------
     def lookup_cves(self, software_list):
         results = []
@@ -43,64 +90,49 @@ class NVDLookupStructured:
             version = entry.get("version")
             port = entry.get("port")
 
-            # Skip empty entries
-            if not product or not version:
-                print(f"[!] Skipping empty product/version for port {port}")
+            if not product:
+                print(f"[!] Skipping empty product for port {port}")
                 continue
 
-            # Build CPE
-            cpe = self.guess_cpe(product, version)
+            print(f"\n[~] Resolving CPE for: {product} {version} (port {port})")
+            cpe = self.find_best_cpe(product, version)
+
             if not cpe:
-                print(f"[!] Could not build CPE for {product} {version}")
+                print(f"[!] No CPE found for {product} {version}")
                 continue
-
-            print(f"[~] Querying NVD for CPE: {cpe} (port {port})")
 
             params = {
                 "cpeName": cpe,
                 "resultsPerPage": self.results_per_page
             }
-
-            headers = {}
-            if self.api_key:
-                headers["apiKey"] = self.api_key
+            headers = {"apiKey": self.api_key} if self.api_key else {}
 
             try:
-                response = requests.get(
-                    self.base_url,
-                    params=params,
-                    headers=headers,
-                    timeout=10
-                )
-
-                # Debug: show the exact URL used
-                print("[DEBUG] URL:", response.url)
-
-                response.raise_for_status()
-                data = response.json()
-
-                cve_items = data.get("vulnerabilities", [])
-                for item in cve_items:
-                    cve_id = item.get("cve", {}).get("id")
-                    if cve_id:
-                        results.append({
-                            "cve_id": cve_id,
-                            "product": product,
-                            "version": version,
-                            "port": port
-                        })
-
-            except requests.exceptions.HTTPError as e:
-                print(f"[!] HTTP error for {product} {version}: {e}")
+                resp = requests.get(self.base_cve_url, params=params, headers=headers, timeout=10)
+                print("[DEBUG] CVE URL:", resp.url)
+                resp.raise_for_status()
+                data = resp.json()
             except Exception as e:
-                print(f"[!] Error querying NVD for {product} {version}: {e}")
+                print(f"[!] CVE lookup failed for {product} {version}: {e}")
+                continue
+
+            vulns = data.get("vulnerabilities", [])
+            for v in vulns:
+                cve_id = v.get("cve", {}).get("id")
+                if cve_id:
+                    results.append({
+                        "cve_id": cve_id,
+                        "product": product,
+                        "version": version,
+                        "port": port
+                    })
 
             time.sleep(self.delay)
 
         return results
 
     # ------------------------------------------------------------
-    # Build software list from structured scan model
+    # Build software list from scan model
     # ------------------------------------------------------------
     def build_software_list(self, scan_model):
         software = []
