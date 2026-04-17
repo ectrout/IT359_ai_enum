@@ -38,7 +38,7 @@ def load_config(path="config.json") -> dict:
             "wordlist":  "/usr/share/wordlists/dirb/common.txt",
             "gobuster":  True,
             "nikto":     True,
-            "fast_scan": False
+            "fast_scan": True
         }
     except Exception as e:
         print(f"[!] Error loading config: {e}")
