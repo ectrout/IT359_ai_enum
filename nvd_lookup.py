@@ -1,168 +1,103 @@
-import nvdlib
-import json
-import time
 import os
-
-"""
-nvd_lookup.py
-
-Queries the NVD using nvdlib.
-Rate limiting: 7 second delay without API key, 1 second with one.
-Set NVD_API_KEY environment variable to enable fast mode.
-
-Author: Eric Trout / Jake Cirks
-Project: IT-359 xRECON AI Pen Testing Framework
-
-Install: pip install nvdlib
-Get a free API key: https://nvd.nist.gov/developers/request-an-api-key
-"""
+import time
+import nvdlib
+from typing import List, Dict, Any
 
 
-class NVDLookup:
-
+class NVDLookupStructured:
     def __init__(self, results_per_page: int = 5):
-        # Pull API key from environment if set
-        # Fast mode: export NVD_API_KEY="your-key-here"
-        self.api_key          = os.environ.get("NVD_API_KEY", None)
+        self.api_key = os.environ.get("NVD_API_KEY")
         self.results_per_page = results_per_page
+        self.delay = 1 if self.api_key else 7
 
         if self.api_key:
-            print("[+] NVD API key found — using fast mode (1s delay)")
+            print("[+] NVD API key found — fast mode (1s delay)")
         else:
-            print("[!] No NVD API key — using rate-limited mode (7s delay per query)")
+            print("[!] No NVD API key — rate-limited mode (7s delay)")
             print("    Get a free key: https://nvd.nist.gov/developers/request-an-api-key")
 
+    def build_software_list(self, scan_model: Dict[str, Any]) -> List[Dict[str, str]]:
+        items = []
+        for host in scan_model.get("hosts", []):
+            for port in host.get("ports", []):
+                product = port.get("product")
+                version = port.get("version")
+                service = port.get("service")
+                portid = port.get("port")
 
-    # ------------------------------------------------------------------
-    # Public entry point
-    # ------------------------------------------------------------------
+                # Keep entries even if version is missing
+                items.append({
+                    "service": service,
+                    "product": product,
+                    "version": version,
+                    "port": portid,
+                })
+        return items
 
-    def run(self, findings: dict, client) -> list:
-        print("\n[+] Extracting software versions via Ollama...")
-        version_list = self.extract_versions(findings, client)
-
-        if not version_list:
-            print("[!] No software versions extracted. Skipping NVD lookup.")
-            return []
-
-        print(f"[+] Found {len(version_list)} software version(s). Querying NVD...\n")
-        cve_list = self.lookup_cves(version_list)
-
-        if not cve_list:
-            print("[!] No CVEs found for detected software.")
-            return []
-
-        cve_list.sort(key=lambda x: x.get("score") or 0, reverse=True)
-        return cve_list
-
-
-    # ------------------------------------------------------------------
-    # Step 1: Ollama extracts version strings
-    # ------------------------------------------------------------------
-
-    def extract_versions(self, findings: dict, client) -> list:
-        output_text = ""
-        for finding in findings.get("findings", []):
-            port    = finding.get("port")
-            service = finding.get("service")
-            output  = finding.get("output", "")
-            if output:
-                output_text += f"\nPort {port} ({service}):\n{output}\n"
-
-        if not output_text.strip():
-            print("[!] No enumeration output to extract versions from.")
-            return []
-
-        prompt = f"""
-Extract all software names and version numbers from the following
-enumeration output. Return ONLY a JSON array with no extra text,
-no markdown, and no code fences.
-
-Each item must have exactly two keys: "software" and "version".
-
-Example format:
-[
-    {{"software": "Apache", "version": "2.4.7"}},
-    {{"software": "OpenSSH", "version": "6.6.1"}}
-]
-
-If no version numbers are found, return an empty array: []
-
-Enumeration output:
-{output_text}
-"""
-        response = client.chat(prompt)
-
-        try:
-            clean = (
-                response.strip()
-                .removeprefix("```json")
-                .removeprefix("```")
-                .removesuffix("```")
-                .strip()
-            )
-            return json.loads(clean)
-        except Exception as e:
-            print(f"[!] Could not parse version JSON from Ollama: {e}")
-            return []
-
-
-    # ------------------------------------------------------------------
-    # Step 2: Query NVD via nvdlib
-    # ------------------------------------------------------------------
-
-    def lookup_cves(self, version_list: list) -> list:
+    def lookup_cves(self, software_list: List[Dict[str, str]]) -> List[Dict[str, Any]]:
         all_cves = []
 
-        # Set delay based on whether API key exists
-        delay = 1 if self.api_key else 7
+        for item in software_list:
+            product = (item.get("product") or "").strip()
+            version = (item.get("version") or "").strip()
+            service = (item.get("service") or "").strip()
+            port = item.get("port")
 
-        for item in version_list:
-            software = item.get("software", "").strip()
-            version  = item.get("version", "").strip()
-
-            if not software or not version:
+            # If we have neither product nor service, skip
+            if not product and not service:
                 continue
 
-            query = f"{software} {version}"
-            print(f"  [~] Querying NVD for: {query}")
+            # Build a reasonable keyword query
+            if product and version:
+                query = f"{product} {version}"
+            elif product:
+                query = product
+            elif service and version:
+                query = f"{service} {version}"
+            else:
+                query = service
+
+            print(f"  [~] Querying NVD for: {query} (port {port})")
 
             try:
                 results = nvdlib.searchCVE(
                     keywordSearch=query,
                     limit=self.results_per_page,
                     key=self.api_key,
-                    delay=delay
+                    delay=self.delay,
                 )
 
                 for r in results:
-                    score    = None
+                    score = None
                     severity = None
 
-                    if hasattr(r, 'v31score') and r.v31score:
-                        score    = r.v31score
-                        severity = r.v31severity if hasattr(r, 'v31severity') else None
-                    elif hasattr(r, 'v30score') and r.v30score:
-                        score    = r.v30score
-                        severity = r.v30severity if hasattr(r, 'v30severity') else None
-                    elif hasattr(r, 'v2score') and r.v2score:
-                        score    = r.v2score
-                        severity = r.v2severity if hasattr(r, 'v2severity') else None
+                    if getattr(r, "v31score", None):
+                        score = r.v31score
+                        severity = getattr(r, "v31severity", None)
+                    elif getattr(r, "v30score", None):
+                        score = r.v30score
+                        severity = getattr(r, "v30severity", None)
+                    elif getattr(r, "v2score", None):
+                        score = r.v2score
+                        severity = getattr(r, "v2severity", None)
 
                     description = ""
-                    if hasattr(r, 'descriptions') and r.descriptions:
+                    if getattr(r, "descriptions", None):
                         for d in r.descriptions:
                             if d.lang == "en":
                                 description = d.value
                                 break
 
                     all_cves.append({
-                        "software":    software,
-                        "version":     version,
-                        "cve_id":      r.id,
-                        "score":       score,
-                        "severity":    severity,
-                        "description": description
+                        "port": port,
+                        "service": service,
+                        "product": product,
+                        "version": version or None,
+                        "cve_id": r.id,
+                        "score": score,
+                        "severity": severity,
+                        "description": description,
+                        "query": query,
                     })
 
                 if results:
@@ -173,20 +108,6 @@ Enumeration output:
             except Exception as e:
                 print(f"    [!] NVD query failed for {query}: {e}")
 
+        # Sort by score descending, None last
+        all_cves.sort(key=lambda x: x.get("score") or 0, reverse=True)
         return all_cves
-
-
-    # ------------------------------------------------------------------
-    # Export
-    # ------------------------------------------------------------------
-
-    def save_results(self, cve_list: list, target: str, filename: str = None):
-        if filename is None:
-            safe_target = target.replace(".", "_")
-            filename    = f"{safe_target}_cves.json"
-        try:
-            with open(filename, "w") as f:
-                json.dump(cve_list, f, indent=2)
-            print(f"[+] CVE results saved to {filename}")
-        except Exception as e:
-            print(f"[!] Could not save CVE results: {e}")
