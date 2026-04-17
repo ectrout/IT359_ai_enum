@@ -90,5 +90,27 @@ class Ollamaclient:
     def reset(self):
         self.history =[]   #Create new empty history
         self._save_history()    # Save the new empty history
-        
 
+    def trim_history(self, keep_pairs: int = 2):
+        """
+        Called at the end of each scan run to prevent history bloat.
+        Keeps ALL system messages (summaries) and only the most recent
+        user/assistant pairs.
+    
+        keep_pairs — how many recent user/assistant exchanges to keep
+        """
+        system_messages = [m for m in self.history if m.get("role") == "system"]
+    
+        # Get only user/assistant messages
+        conversational = [m for m in self.history if m.get("role") != "system"]
+    
+        # Keep only the last N pairs (each pair = 1 user + 1 assistant = 2 messages)
+        keep_count = keep_pairs * 2
+        trimmed_conversational = conversational[-keep_count:] if len(conversational) > keep_count else conversational
+    
+        # Rebuild history: summaries first, then recent exchanges
+        self.history = system_messages + trimmed_conversational
+        self._save_history()
+    
+        removed = len(conversational) - len(trimmed_conversational)
+        print(f"[+] History trimmed — removed {removed} old messages, kept {len(self.history)} total")
