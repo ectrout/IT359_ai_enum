@@ -13,7 +13,7 @@ Project: IT-359 xRECON AI Pen Testing Framework
 
 
 class NmapScan:
-    def __init__(self, target, fast=False):
+    def __init__(self, target, fast=True):
         self.target = target
 
         if fast:
