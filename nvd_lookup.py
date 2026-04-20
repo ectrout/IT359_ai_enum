@@ -5,9 +5,10 @@ from difflib import SequenceMatcher
 
 
 class NVDLookupStructured:
-    def __init__(self, results_per_page=5):
+    def __init__(self, results_per_page=5, local_cpe_map=None):
         self.api_key = os.environ.get("NVD_API_KEY")
         self.results_per_page = results_per_page
+        self.local_cpe_map = local_cpe_map or {}
         self.base_cve_url = "https://services.nvd.nist.gov/rest/json/cves/2.0"
         self.base_cpe_url = "https://services.nvd.nist.gov/rest/json/cpes/2.0"
 
@@ -144,3 +145,20 @@ class NVDLookupStructured:
                     "port": svc.get("port")
                 })
         return software
+
+    def resolve_local_cpe(self, service_name, version):
+        name = service_name.lower()
+
+        if name in self.local_cpe_map:
+            entry = self.local_cpe_map[name]
+
+            # Exact version match
+            if version in entry.get("versions", {}):
+                return entry["versions"][version]
+
+            # Fallback: vendor/product only
+            vendor = entry["vendor"]
+            product = entry["product"]
+            return f"cpe:2.3:a:{vendor}:{product}:{version}:*:*:*:*:*:*:*"
+
+        return None
