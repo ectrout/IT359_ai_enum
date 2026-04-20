@@ -96,7 +96,11 @@ class NVDLookupStructured:
                 continue
 
             print(f"\n[~] Resolving CPE for: {product} {version} (port {port})")
-            cpe = self.find_best_cpe(product, version)
+            cpe = self.resolve_local_cpe(product, version)
+
+            if not cpe:
+                cpe=self.find_best_cpe(product, version)
+            
 
             if not cpe:
                 print(f"[!] No CPE found for {product} {version}")
