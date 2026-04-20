@@ -15,6 +15,18 @@ from poc_intel import PoCIntel
 from update_module_metadata import main as update_modules
 
 
+# Load local CPE map
+LOCAL_CPE_MAP = {}
+cpe_path = os.path.join(os.path.dirname(__file__), "local_cpe_map.json")
+
+try:
+    with open(cpe_path, "r") as f:
+        LOCAL_CPE_MAP = json.load(f)
+    print(f"[+] Loaded local CPE map with {len(LOCAL_CPE_MAP)} entries")
+except Exception as e:
+    print(f"[!] Failed to load local CPE map: {e}")
+
+
 def run_nmap_xml(target: str, xml_path: str = "scan.xml") -> bool:
     cmd = ["nmap", "-sV", "-oX", xml_path, target]
     print(f"[+] Running Nmap: {' '.join(cmd)}")
@@ -48,7 +60,7 @@ def nmap_to_ai_structured(target: str, client: Ollamaclient):
     print(f"[+] Parsed scan model: {host_count} host(s) detected")
 
     # 3) NVD lookup
-    nvd = NVDLookupStructured(results_per_page=5)
+    nvd = NVDLookupStructured(results_per_page=5, local_cpe_map=LOCAL_CPE_MAP)
     software_list = nvd.build_software_list(scan_model)
     print(f"[+] Software list built with {len(software_list)} entries")
 
