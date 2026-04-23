@@ -150,19 +150,65 @@ class NVDLookupStructured:
                 })
         return software
 
-    def resolve_local_cpe(self, service_name, version):
-        name = service_name.lower()
-
-        if name in self.local_cpe_map:
-            entry = self.local_cpe_map[name]
-
+  #  def resolve_local_cpe(self, service_name, version):
+   #     name = service_name.lower()
+#
+  #      if name in self.local_cpe_map:
+ #
+  #          entry = self.local_cpe_map[name]
+#
             # Exact version match
-            if version in entry.get("versions", {}):
-                return entry["versions"][version]
-
+ #           if version in entry.get("versions", {}):
+  #              return entry["versions"][version]
+#
             # Fallback: vendor/product only
-            vendor = entry["vendor"]
-            product = entry["product"]
-            return f"cpe:2.3:a:{vendor}:{product}:{version}:*:*:*:*:*:*:*"
+ #           vendor = entry["vendor"]
+  #          product = entry["product"]
+   #         return f"cpe:2.3:a:{vendor}:{product}:{version}:*:*:*:*:*:*:*"
+#
+ #       return None
 
-        return None
+    def resolve_local_cpe(self, service_name, version):
+        """ 
+        I do not know what I am doing. 
+        I read a few documents that said I can normalize finding a CPE 
+        if NVD has normalizations then that should help the search process right?
+        this is some copy paste so I am sorry for not understanding all of it
+        """
+        import re
+
+    if not service_name or not version:
+        return none
+
+#this cleans that pesky version number 
+    match = re.match(r'^(\d+\.\d+(?:\.\d+)?(?:p\d+)?)', str(version))
+    clean_version = match.grop(1) if match else version
+
+# So this is similar to the nmap xml file in which we are just mapping nmap pieces to normalizations
+# They said to stick to vendor and product as versions are dynamic??
+#I feel like thats not right ill look more into it
+
+#for basic understanding the  CPE syntax is vendor:product:version
+#we are looking for these specific static vendors because that is what we have enumerators set up for
+normalizations = { 
+    "apache httpd":  ("apache", "http_server"),
+        "openssh":       ("openbsd", "openssh"),
+        "proftpd":       ("proftpd_project", "proftpd"),
+        "samba":         ("samba", "samba"),
+        "samba smbd":    ("samba", "samba"),
+        "mysql":         ("oracle", "mysql"),
+        "jetty":         ("eclipse", "jetty"),
+        "cups":          ("apple", "cups"),
+        "vsftpd":        ("vsftpd_project", "vsftpd"),
+        "nginx":         ("nginx", "nginx"),
+    }
+ key = service_name.lower().strip()
+
+    if key in normalizations:
+        vendor, product = normalizations[key]
+    else:
+        # Best guess for unknown software
+        vendor = key.split()[0]
+        product = key.replace(" ", "_")
+    return f"cpe:2.3:a:{vendor}:{product}:{clean_version}:*:*:*:*:*:*:*"
+        
