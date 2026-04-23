@@ -94,23 +94,23 @@ def nmap_to_ai_structured(target: str, client: Ollamaclient):
         }
 
     service_map = {
-    "ftp":          "ftp",
-    "proftpd":      "ftp",      
-    "ssh":          "ssh",
-    "openssh":      "ssh",       
-    "http":         "http",
-    "https":        "https",
-    "ssl/http":     "https",
-    "microsoft-ds": "smb",
-    "netbios-ssn":  "smb",
-    "samba":        "smb",
-    "smtp":         "smtp",
-    "mysql":        "http",
-    "jetty":        "http",
-    "apache":       "http",
-    "nginx":        "http",
-    "cups":         "http",   
-}
+        "ftp":          "ftp",
+        "proftpd":      "ftp",
+        "ssh":          "ssh",
+        "openssh":      "ssh",
+        "http":         "http",
+        "https":        "https",
+        "ssl/http":     "https",
+        "microsoft-ds": "smb",
+        "netbios-ssn":  "smb",
+        "samba":        "smb",
+        "smtp":         "smtp",
+        "mysql":        "http",
+        "jetty":        "http",
+        "apache":       "http",
+        "nginx":        "http",
+        "cups":         "http",
+    }
 
     port_list = []
     for host in scan_model.get("hosts", []):
