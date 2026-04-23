@@ -13,6 +13,7 @@ from service_enum import ServiceEnumerator
 from module_intel import ModuleIntel
 from poc_intel import PoCIntel
 from update_module_metadata import main as update_modules
+from service_enum import ServiceEnumerator    # was never imported before
 
 
 # Load local CPE map
