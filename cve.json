@@ -10,6 +10,8 @@
     "vendor": "openbsd",
     "product": "openssh",
     "versions": {
+      "6.6.1p1": "cpe:2.3:a:openbsd:openssh:6.6.1p1:*:*:*:*:*:*:*",
+      "6.6.1": "cpe:2.3:a:openbsd:openssh:6.6.1:*:*:*:*:*:*:*",
       "8.2p1": "cpe:2.3:a:openbsd:openssh:8.2p1:*:*:*:*:*:*:*"
     }
   },
@@ -17,13 +19,24 @@
     "vendor": "apache",
     "product": "http_server",
     "versions": {
-      "2.4.41": "cpe:2.3:a:apache:http_server:2.4.41:*:*:*:*:*:*:*"
+      "2.4.7": "cpe:2.3:a:apache:http_server:2.4.7:*:*:*:*:*:*:*",
+      "2.4.41": "cpe:2.3:a:apache:http_server:2.4.41:*:*:*:*:*:*:*",
+      "2.4.49": "cpe:2.3:a:apache:http_server:2.4.49:*:*:*:*:*:*:*"
+    }
+  },
+  "samba smbd": {
+    "vendor": "samba",
+    "product": "samba",
+    "versions": {
+      "4.3.11": "cpe:2.3:a:samba:samba:4.3.11:*:*:*:*:*:*:*",
+      "4.9.5": "cpe:2.3:a:samba:samba:4.9.5:*:*:*:*:*:*:*"
     }
   },
   "samba": {
     "vendor": "samba",
     "product": "samba",
     "versions": {
+      "4.3.11": "cpe:2.3:a:samba:samba:4.3.11:*:*:*:*:*:*:*",
       "4.9.5": "cpe:2.3:a:samba:samba:4.9.5:*:*:*:*:*:*:*"
     }
   },
@@ -31,20 +44,15 @@
     "vendor": "apple",
     "product": "cups",
     "versions": {
+      "1.7": "cpe:2.3:a:apple:cups:1.7:*:*:*:*:*:*:*",
       "2.2": "cpe:2.3:a:apple:cups:2.2:*:*:*:*:*:*:*"
-    }
-  },
-  "ppp": {
-    "vendor": "ppp_project",
-    "product": "ppp",
-    "versions": {
-      "2.4.7": "cpe:2.3:a:ppp_project:ppp:2.4.7:*:*:*:*:*:*:*"
     }
   },
   "mysql": {
     "vendor": "oracle",
     "product": "mysql",
     "versions": {
+      "5.5": "cpe:2.3:a:oracle:mysql:5.5:*:*:*:*:*:*:*",
       "5.7.29": "cpe:2.3:a:oracle:mysql:5.7.29:*:*:*:*:*:*:*"
     }
   },
@@ -52,7 +60,15 @@
     "vendor": "eclipse",
     "product": "jetty",
     "versions": {
+      "8.1.7": "cpe:2.3:a:eclipse:jetty:8.1.7:*:*:*:*:*:*:*",
       "9.4.18": "cpe:2.3:a:eclipse:jetty:9.4.18:*:*:*:*:*:*:*"
+    }
+  },
+  "ppp": {
+    "vendor": "ppp_project",
+    "product": "ppp",
+    "versions": {
+      "2.4.7": "cpe:2.3:a:ppp_project:ppp:2.4.7:*:*:*:*:*:*:*"
     }
   },
   "intermapper": {
