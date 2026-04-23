@@ -168,47 +168,40 @@ class NVDLookupStructured:
 #
  #       return None
 
-    def resolve_local_cpe(self, service_name, version):
         """ 
         I do not know what I am doing. 
         I read a few documents that said I can normalize finding a CPE 
         if NVD has normalizations then that should help the search process right?
         this is some copy paste so I am sorry for not understanding all of it
         """
+     def resolve_local_cpe(self, service_name, version):
         import re
 
-    if not service_name or not version:
-        return none
+        if not service_name or not version:
+            return None
 
-#this cleans that pesky version number 
-    match = re.match(r'^(\d+\.\d+(?:\.\d+)?(?:p\d+)?)', str(version))
-    clean_version = match.grop(1) if match else version
+        match = re.match(r'^(\d+\.\d+(?:\.\d+)?(?:p\d+)?)', str(version))
+        clean_version = match.group(1) if match else version
 
-# So this is similar to the nmap xml file in which we are just mapping nmap pieces to normalizations
-# They said to stick to vendor and product as versions are dynamic??
-#I feel like thats not right ill look more into it
+        normalizations = {
+            "apache httpd":  ("apache", "http_server"),
+            "openssh":       ("openbsd", "openssh"),
+            "proftpd":       ("proftpd_project", "proftpd"),
+            "samba":         ("samba", "samba"),
+            "samba smbd":    ("samba", "samba"),
+            "mysql":         ("oracle", "mysql"),
+            "jetty":         ("eclipse", "jetty"),
+            "cups":          ("apple", "cups"),
+            "vsftpd":        ("vsftpd_project", "vsftpd"),
+            "nginx":         ("nginx", "nginx"),
+        }
 
-#for basic understanding the  CPE syntax is vendor:product:version
-#we are looking for these specific static vendors because that is what we have enumerators set up for
-normalizations = { 
-    "apache httpd":  ("apache", "http_server"),
-        "openssh":       ("openbsd", "openssh"),
-        "proftpd":       ("proftpd_project", "proftpd"),
-        "samba":         ("samba", "samba"),
-        "samba smbd":    ("samba", "samba"),
-        "mysql":         ("oracle", "mysql"),
-        "jetty":         ("eclipse", "jetty"),
-        "cups":          ("apple", "cups"),
-        "vsftpd":        ("vsftpd_project", "vsftpd"),
-        "nginx":         ("nginx", "nginx"),
-    }
- key = service_name.lower().strip()
+        key = service_name.lower().strip()
 
-    if key in normalizations:
-        vendor, product = normalizations[key]
-    else:
-        # Best guess for unknown software
-        vendor = key.split()[0]
-        product = key.replace(" ", "_")
-    return f"cpe:2.3:a:{vendor}:{product}:{clean_version}:*:*:*:*:*:*:*"
-        
+        if key in normalizations:
+            vendor, product = normalizations[key]
+        else:
+            vendor  = key.split()[0]
+            product = key.replace(" ", "_")
+
+        return f"cpe:2.3:a:{vendor}:{product}:{clean_version}:*:*:*:*:*:*:*"
