@@ -114,7 +114,7 @@ class NVDLookupStructured:
 
             try:
                 resp = requests.get(self.base_cve_url, params=params, headers=headers, timeout=10)
-                print("[DEBUG] CVE URL:", resp.url)
+                print("CVE URL:", resp.url)
                 resp.raise_for_status()
                 data = resp.json()
             except Exception as e:
