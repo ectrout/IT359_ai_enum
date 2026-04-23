@@ -172,23 +172,29 @@ def nmap_to_ai_structured(target: str, client: Ollamaclient):
     # ----------------------------------------------------------------
     print("\n[+] Asking Ollama for offensive attack paths...")
 
+    # Build summary outside the f-string to avoid dict/set confusion
+    findings_summary = json.dumps([
+        {
+            "port":    f.get("port"),
+            "service": f.get("service"),
+            "output":  (f.get("output") or "")[:800]
+        }
+        for f in findings.get("findings", [])
+    ], indent=2)
+
     findings_prompt = f"""
-You are an offensive penetration tester.
-Do NOT suggest fixes or defensive recommendations.
+    You are an offensive penetration tester.
+    Do NOT suggest fixes or defensive recommendations.
 
-Analyze these enumeration findings from {target} and provide:
-- Confirmed vulnerabilities and what makes them exploitable
-- Specific attack paths ranked by likelihood of success
-- Credentials, misconfigs, or exposed services worth targeting
-- What to try first and why
+    Analyze these enumeration findings from {target} and provide:
+    - Confirmed vulnerabilities and what makes them exploitable
+    - Specific attack paths ranked by likelihood of success
+    - Credentials, misconfigs, or exposed services worth targeting
+    - What to try first and why
 
-Enumeration findings:
-{json.dumps([{{
-    "port":    f.get("port"),
-    "service": f.get("service"),
-    "output":  (f.get("output") or "")[:800]
-}} for f in findings.get("findings", [])], indent=2)}
-"""
+    Enumeration findings:
+    {findings_summary}
+    """
     enum_analysis = client.chat(findings_prompt)
 
     print("\n[+] Attack path analysis:\n")
