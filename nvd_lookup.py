@@ -1,5 +1,6 @@
 import os
 import time
+import re
 import requests
 from difflib import SequenceMatcher
 
@@ -99,8 +100,7 @@ class NVDLookupStructured:
             cpe = self.resolve_local_cpe(product, version)
 
             if not cpe:
-                cpe=self.find_best_cpe(product, version)
-            
+                cpe = self.find_best_cpe(product, version)
 
             if not cpe:
                 print(f"[!] No CPE found for {product} {version}")
@@ -150,50 +150,40 @@ class NVDLookupStructured:
                 })
         return software
 
-  #  def resolve_local_cpe(self, service_name, version):
-   #     name = service_name.lower()
-#
-  #      if name in self.local_cpe_map:
- #
-  #          entry = self.local_cpe_map[name]
-#
-            # Exact version match
- #           if version in entry.get("versions", {}):
-  #              return entry["versions"][version]
-#
-            # Fallback: vendor/product only
- #           vendor = entry["vendor"]
-  #          product = entry["product"]
-   #         return f"cpe:2.3:a:{vendor}:{product}:{version}:*:*:*:*:*:*:*"
-#
- #       return None
-
-        """ 
-        I do not know what I am doing. 
-        I read a few documents that said I can normalize finding a CPE 
-        if NVD has normalizations then that should help the search process right?
-        this is some copy paste so I am sorry for not understanding all of it
-        """
-     def resolve_local_cpe(self, service_name, version):
-        import re
-
+    # ------------------------------------------------------------
+    # CPE RESOLUTION
+    # I do not know what I am doing.
+    # I read a few documents that said I can normalize finding a CPE
+    # if NVD has normalizations then that should help the search process right?
+    #
+    # ------------------------------------------------------------
+    def resolve_local_cpe(self, service_name, version):
         if not service_name or not version:
             return None
 
+        # Clean up version strings that have extra build metadata
+        # nmap returns "8.1.7.v20120910" but NVD knows it as "8.1.7"
+        # nmap returns "6.6.1p1" and NVD knows it as "6.6.1p1" — kept as-is
         match = re.match(r'^(\d+\.\d+(?:\.\d+)?(?:p\d+)?)', str(version))
         clean_version = match.group(1) if match else version
 
+        # Maps what nmap calls the software → what NVD calls it (vendor, product)
+        # Source: https://nvd.nist.gov/products/cpe/search
+        # Only vendor+product here — version is dynamic from nmap
         normalizations = {
             "apache httpd":  ("apache", "http_server"),
             "openssh":       ("openbsd", "openssh"),
             "proftpd":       ("proftpd_project", "proftpd"),
             "samba":         ("samba", "samba"),
-            "samba smbd":    ("samba", "samba"),
+            "samba smbd":    ("samba", "samba"),   # nmap labels it this way
             "mysql":         ("oracle", "mysql"),
             "jetty":         ("eclipse", "jetty"),
             "cups":          ("apple", "cups"),
             "vsftpd":        ("vsftpd_project", "vsftpd"),
             "nginx":         ("nginx", "nginx"),
+            "iis":           ("microsoft", "iis"),
+            "php":           ("php", "php"),
+            "drupal":        ("drupal", "drupal"),
         }
 
         key = service_name.lower().strip()
@@ -201,6 +191,8 @@ class NVDLookupStructured:
         if key in normalizations:
             vendor, product = normalizations[key]
         else:
+            # Best guess for software not in our list
+            # takes the first word as vendor, full name as product
             vendor  = key.split()[0]
             product = key.replace(" ", "_")
 
