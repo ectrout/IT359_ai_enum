@@ -152,7 +152,7 @@ def main():
         return
 
     client = Ollamaclient(
-        url=os.environ.get("OLLAMA_URL", "http://localhost:11434"),
+        url=os.environ.get("OLLAMA_URL", "http://sushi.it.ilstu.edu:8080"),
         api_key=os.environ.get("API_KEY"),
         model=os.environ.get("OLLAMA_MODEL", "llama3.3:latest"),
     )
